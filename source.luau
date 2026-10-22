@@ -2167,7 +2167,7 @@ local UserInputService = game:GetService("UserInputService")
 
 -- Shown in the window's topbar and readable as PixlLib.Version. Raise it with every push, so
 -- the window tells you whether the new build has arrived (GitHub's raw links cache ~5 minutes).
-local VERSION = "1.3.0"
+local VERSION = "1.3.1"
 
 -- Colors
 local Colors = {
@@ -2980,8 +2980,8 @@ local Dropdown = (function()
 								return "Select options"
 							end
 						end,
-						TextColor3 = Colors.textMuted,
-						TextSize = 20,
+						TextColor3 = Colors.textSecondary,
+						TextSize = 22,
 						TextXAlignment = "Right",
 						FontFace = Font.fromName("Montserrat", Enum.FontWeight.Medium),
 					}),
@@ -3487,8 +3487,8 @@ local PriorityList = (function()
 							local names = enabledNames(items())
 							return if #names > 0 then table.concat(names, " > ") else "None"
 						end,
-						TextColor3 = Colors.textMuted,
-						TextSize = 20,
+						TextColor3 = Colors.textSecondary,
+						TextSize = 22,
 						TextXAlignment = "Right",
 						TextTruncate = "AtEnd",
 						FontFace = Font.fromName("Montserrat", Enum.FontWeight.Medium),
@@ -4807,22 +4807,16 @@ local Window = (function()
 					FontFace = Font.fromName("Montserrat", Enum.FontWeight.ExtraBold),
 				}),
 
-				create("TextLabel")({ -- version tag, shows which PixlLib build is running
-					Size = UDim2.fromOffset(0, 30),
+				create("TextLabel")({ -- version, plain text next to the title: which build is running
+					Size = UDim2.fromScale(0, 1),
 					AutomaticSize = "X",
 					LayoutOrder = 2,
-					BackgroundColor3 = Colors.surfaceHover,
+					BackgroundTransparency = 1,
 
-					Text = "v" .. VERSION,
-					TextSize = 20,
-					TextColor3 = Colors.accentSoft,
-					FontFace = Font.fromName("Montserrat", Enum.FontWeight.Bold),
-
-					create("UICorner")({ CornerRadius = UDim.new(1, 0) }),
-					create("UIPadding")({
-						PaddingLeft = UDim.new(0, 10),
-						PaddingRight = UDim.new(0, 10),
-					}),
+					Text = VERSION,
+					TextSize = 24,
+					TextColor3 = Colors.textMuted,
+					FontFace = Font.fromName("Montserrat", Enum.FontWeight.Medium),
 				}),
 			}),
 
