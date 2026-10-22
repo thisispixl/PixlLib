@@ -3290,6 +3290,414 @@ local Dropdown = (function()
 	return Dropdown
 end)()
 
+-- PriorityList
+local PriorityList = (function()
+	local create = vide.create
+	local source = vide.source
+	local indexes = vide.indexes
+	local spring = vide.spring
+
+	-- Like the Dropdown's, the open panel is exactly as tall as its rows. It never scrolls: a
+	-- priority list is short, and every entry has to be in view to be put in order.
+	local ROW_HEIGHT = 60
+	local ROW_GAP = 12 -- UIListLayout padding between the rows
+	local PANEL_PADDING = 8 -- the row frame's own UIPadding, top + bottom
+	local HEADER_GAP = 10 -- the rows start 10px below the 60px header
+
+	local CHECKBOX_SIZE = 26
+	local ARROW_SIZE = 34
+	local CHECKBOX_INSET = 16 -- checkbox distance from the row's right edge
+	local DOWN_INSET = CHECKBOX_INSET + CHECKBOX_SIZE + 12
+	local UP_INSET = DOWN_INSET + ARROW_SIZE + 4
+	local NAME_LEFT = 52 -- room for the position number in front of the name
+
+	local function panelHeightFor(rowCount: number): number
+		if rowCount == 0 then
+			return 0
+		end
+		return rowCount * ROW_HEIGHT + (rowCount - 1) * ROW_GAP + PANEL_PADDING + HEADER_GAP
+	end
+
+	local PriorityList = {}
+
+	-- An ordered list of options, each switched on or off. Its value is the switched-on names in
+	-- their order - { "Gems", "Reroll Orbs" } - so a script walks it and takes the first one
+	-- that works. Rows move with arrow buttons rather than drag and drop: dragging fights with
+	-- scrolling the page on a touch screen.
+	--
+	-- The value only holds the switched-on names, so that is all a saved config restores. They
+	-- come back first and in order; the switched-off ones follow in their original order.
+	function PriorityList.new(config, onChanged)
+		local callback = config.Callback
+
+		-- { { Name = string, Enabled = boolean } } in priority order. Entries are replaced, never
+		-- edited in place, so vide sees every change.
+		local items = source({})
+
+		local function enabledNames(list)
+			local names = {}
+			for _, item in list do
+				if item.Enabled then
+					table.insert(names, item.Name)
+				end
+			end
+			return names
+		end
+
+		local function setItems(new, fire)
+			items(new)
+
+			if fire then
+				if callback then
+					callback(enabledNames(new))
+				end
+				if onChanged then
+					onChanged()
+				end
+			end
+		end
+
+		-- The full list for a set of switched-on names: those first in the given order, every
+		-- other option after them, switched off and in its current order
+		local function fromEnabled(names, current)
+			local known = {}
+			for _, item in current do
+				known[item.Name] = true
+			end
+
+			local new = {}
+			local taken = {}
+			for _, optionName in names do
+				if known[optionName] and not taken[optionName] then
+					taken[optionName] = true
+					table.insert(new, { Name = optionName, Enabled = true })
+				end
+			end
+			for _, item in current do
+				if not taken[item.Name] then
+					table.insert(new, { Name = item.Name, Enabled = false })
+				end
+			end
+			return new
+		end
+
+		-- Without a CurrentValue every option starts switched on, in the order given
+		local initial = {}
+		for _, optionName in config.Options or {} do
+			table.insert(initial, { Name = optionName, Enabled = true })
+		end
+		items(initial)
+
+		local list = Element.new("PriorityList", config, {
+			get = function()
+				return enabledNames(items())
+			end,
+
+			set = function(names, fire)
+				-- A single name shows up on its own the same way it can for a Dropdown
+				if type(names) == "string" then
+					names = { names }
+				end
+				setItems(fromEnabled(names or {}, items()), fire)
+			end,
+		})
+
+		local name = list.name
+
+		if config.CurrentValue then
+			list:SetSilent(config.CurrentValue)
+		end
+
+		local function move(from: number, to: number)
+			local current = items()
+			if to < 1 or to > #current then
+				return
+			end
+
+			local new = table.clone(current)
+			new[from], new[to] = new[to], new[from]
+			setItems(new, true)
+		end
+
+		local function toggleItem(index: number)
+			local new = table.clone(items())
+			local item = new[index]
+			new[index] = { Name = item.Name, Enabled = not item.Enabled }
+			setItems(new, true)
+		end
+
+		function list:render()
+			local open = source(false) -- panel expanded?
+
+			local hovered = source(false)
+			local bgColor = spring(function() -- drives the HEADER only (the visible hull when closed)
+				return if hovered() then Colors.surfaceHover else Colors.surface
+			end, 0.3)
+
+			local chevronRotation = spring(function()
+				return if open() then 180 else 0
+			end, 0.3)
+
+			local panelHeight = spring(function() -- single height source for the whole expand/collapse
+				return if open() then panelHeightFor(#items()) else 0
+			end, 0.3)
+
+			return create("Frame")({
+				-- one frame, one animated height: header (60) + panel; clips the rows as it grows/shrinks
+				Size = function()
+					return UDim2.new(0.98, 0, 0, 60 + panelHeight())
+				end,
+				BackgroundColor3 = Colors.bg, -- fixed dark backdrop the rows rest on
+				ClipsDescendants = true,
+				Visible = list.visible,
+
+				create("UICorner")({ CornerRadius = UDim.new(0, 12) }),
+
+				create("Frame")({ -- header row, pinned to the top; this is the hoverable hull
+					Size = UDim2.new(1, 0, 0, 60),
+					BackgroundColor3 = bgColor,
+
+					create("UICorner")({ CornerRadius = UDim.new(0, 12) }),
+
+					create("TextLabel")({ -- name on the left
+						Size = UDim2.new(0.5, -16, 1, 0),
+						AnchorPoint = Vector2.new(0, 0.5),
+						Position = UDim2.new(0, 16, 0.5, 0),
+						BackgroundTransparency = 1,
+
+						Text = name,
+						TextColor3 = Colors.textPrimary,
+						TextSize = 22,
+						TextXAlignment = "Left",
+						TextTruncate = "AtEnd",
+						FontFace = Font.fromName("Montserrat", Enum.FontWeight.Medium),
+					}),
+
+					create("TextLabel")({ -- the order on the right: "Gems > Reroll Orbs"
+						Size = UDim2.new(0.5, -63, 1, 0),
+						AnchorPoint = Vector2.new(1, 0.5),
+						Position = UDim2.new(1, -55, 0.5, 0),
+						BackgroundTransparency = 1,
+
+						Text = function()
+							local names = enabledNames(items())
+							return if #names > 0 then table.concat(names, " > ") else "None"
+						end,
+						TextColor3 = Colors.textMuted,
+						TextSize = 20,
+						TextXAlignment = "Right",
+						TextTruncate = "AtEnd",
+						FontFace = Font.fromName("Montserrat", Enum.FontWeight.Medium),
+					}),
+
+					create("ImageLabel")({ -- chevron, flips when open
+						Size = UDim2.fromOffset(30, 30),
+						AnchorPoint = Vector2.new(1, 0.5),
+						Position = UDim2.new(1, -16, 0.5, 0),
+						BackgroundTransparency = 1,
+
+						Image = Icons.resolve("chevron"),
+						ImageColor3 = Colors.textMuted,
+						Rotation = chevronRotation,
+					}),
+
+					create("TextButton")({ -- click overlay toggles open
+						Size = UDim2.fromScale(1, 1),
+						BackgroundTransparency = 1,
+						Text = "",
+
+						Activated = function()
+							open(not open())
+						end,
+					}),
+
+					MouseEnter = function()
+						hovered(true)
+					end,
+					MouseLeave = function()
+						hovered(false)
+					end,
+				}),
+
+				create("Frame")({ -- the rows, pinned below the header
+					Size = function()
+						return UDim2.new(0.975, 0, 0, math.max(panelHeight() - HEADER_GAP, 0))
+					end,
+					AnchorPoint = Vector2.new(0.5, 0),
+					Position = UDim2.new(0.5, 0, 0, 60 + HEADER_GAP),
+					BackgroundTransparency = 1,
+
+					create("UIListLayout")({ Padding = UDim.new(0, ROW_GAP), HorizontalAlignment = "Left", SortOrder = "LayoutOrder" }),
+					create("UIPadding")({
+						PaddingTop = UDim.new(0, 2),
+						PaddingBottom = UDim.new(0, 6),
+						PaddingLeft = UDim.new(0, 4),
+						PaddingRight = UDim.new(0, 4),
+					}),
+
+					indexes(items, function(item, i)
+						local rowHovered = source(false)
+						local rowBg = spring(function() -- rests on surface over the dark backdrop, hovers one step up
+							return if rowHovered() then Colors.surfaceHover else Colors.surface
+						end, 0.3)
+
+						local boxColor = spring(function() -- inset checkbox, fills with accent when on
+							return if item().Enabled then Colors.accent else Colors.bg
+						end, 0.2)
+
+						local nameColor = spring(function() -- a switched-off entry fades back
+							return if item().Enabled then Colors.textPrimary else Colors.textMuted
+						end, 0.2)
+
+						-- direction: -1 moves the entry up (higher priority), 1 moves it down
+						local function arrow(direction: number, inset: number)
+							local target = i + direction
+							local arrowHovered = source(false)
+
+							return create("ImageButton")({
+								Size = UDim2.fromOffset(ARROW_SIZE, ARROW_SIZE),
+								AnchorPoint = Vector2.new(1, 0.5),
+								Position = UDim2.new(1, -inset, 0.5, 0),
+								BackgroundTransparency = 1,
+								-- Above the row's click overlay, or the overlay swallows the click
+								ZIndex = 2,
+
+								Image = Icons.resolve("chevron"),
+								Rotation = if direction < 0 then 180 else 0,
+								ImageColor3 = function()
+									return if arrowHovered() then Colors.textPrimary else Colors.textMuted
+								end,
+								-- The top entry cannot move up, the bottom one cannot move down
+								Visible = function()
+									return target >= 1 and target <= #items()
+								end,
+
+								MouseEnter = function()
+									arrowHovered(true)
+								end,
+								MouseLeave = function()
+									arrowHovered(false)
+								end,
+								Activated = function()
+									move(i, target)
+								end,
+							})
+						end
+
+						return create("Frame")({
+							Size = UDim2.new(0.98, 0, 0, ROW_HEIGHT),
+							LayoutOrder = i,
+							BackgroundColor3 = rowBg,
+
+							create("UICorner")({ CornerRadius = UDim.new(0, 12) }),
+
+							create("TextLabel")({ -- position in the list
+								Size = UDim2.new(0, NAME_LEFT - 16, 1, 0),
+								Position = UDim2.fromOffset(16, 0),
+								BackgroundTransparency = 1,
+
+								Text = i .. ".",
+								TextColor3 = function()
+									return if item().Enabled then Colors.accentSoft else Colors.textMuted
+								end,
+								TextSize = 22,
+								TextXAlignment = "Left",
+								FontFace = Font.fromName("Montserrat", Enum.FontWeight.Bold),
+							}),
+
+							create("TextLabel")({ -- option name, leaves room for the arrows and the box
+								Size = UDim2.new(1, -(NAME_LEFT + UP_INSET + ARROW_SIZE + 8), 1, 0),
+								Position = UDim2.fromOffset(NAME_LEFT, 0),
+								BackgroundTransparency = 1,
+
+								Text = function()
+									return item().Name
+								end,
+								TextColor3 = nameColor,
+								TextSize = 22,
+								TextXAlignment = "Left",
+								TextTruncate = "AtEnd",
+								FontFace = Font.fromName("Montserrat", Enum.FontWeight.Medium),
+							}),
+
+							create("Frame")({ -- checkbox
+								Size = UDim2.fromOffset(CHECKBOX_SIZE, CHECKBOX_SIZE),
+								AnchorPoint = Vector2.new(1, 0.5),
+								Position = UDim2.new(1, -CHECKBOX_INSET, 0.5, 0),
+								BackgroundColor3 = boxColor,
+
+								create("UICorner")({ CornerRadius = UDim.new(0, 8) }),
+								create("UIStroke")({ Color = Colors.stroke, Thickness = 1.5 }),
+							}),
+
+							create("TextButton")({ -- click overlay: hover + switch the entry on/off
+								Size = UDim2.fromScale(1, 1),
+								BackgroundTransparency = 1,
+								Text = "",
+
+								MouseEnter = function()
+									rowHovered(true)
+								end,
+								MouseLeave = function()
+									rowHovered(false)
+								end,
+								Activated = function()
+									toggleItem(i)
+								end,
+							}),
+
+							-- Created after the overlay so they sit on top of it
+							arrow(-1, UP_INSET),
+							arrow(1, DOWN_INSET),
+						})
+					end),
+				}),
+			})
+		end
+
+		-- Swap the options at runtime, like Dropdown:Refresh. Entries that stay keep their place
+		-- and their switch; new ones are added at the end switched OFF, so nothing new is ever
+		-- used before the user has looked at it. Silent, like the Dropdown: the options changed,
+		-- the user did not.
+		function list:Refresh(options: { string })
+			local wanted = {}
+			for _, optionName in options or {} do
+				wanted[optionName] = true
+			end
+
+			local new = {}
+			local present = {}
+			for _, item in items() do
+				if wanted[item.Name] then
+					present[item.Name] = true
+					table.insert(new, item)
+				end
+			end
+			for _, optionName in options or {} do
+				if not present[optionName] then
+					present[optionName] = true
+					table.insert(new, { Name = optionName, Enabled = false })
+				end
+			end
+
+			setItems(new, false)
+		end
+
+		-- Every option in its current order, switched on or off: { { Name, Enabled } }
+		function list:GetItems(): { { Name: string, Enabled: boolean } }
+			local copy = {}
+			for _, item in items() do
+				table.insert(copy, { Name = item.Name, Enabled = item.Enabled })
+			end
+			return copy
+		end
+
+		return list
+	end
+
+	return PriorityList
+end)()
+
 -- InputBox
 local InputBox = (function()
 	local create = vide.create
@@ -4231,6 +4639,10 @@ local Tab = (function()
 
 		function tab:CreateDropdown(config)
 			return addChild(Dropdown.new(config, onChanged))
+		end
+
+		function tab:CreatePriorityList(config)
+			return addChild(PriorityList.new(config, onChanged))
 		end
 
 		function tab:CreateKeybind(config)

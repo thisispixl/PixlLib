@@ -133,6 +133,25 @@ game directory that is still loading, a list that depends on what the player own
 that still exist in the new list survive; the rest are dropped silently (the user did not
 deselect them, the option went away).
 
+### Priority List
+```luau
+local PriorityList = Tab:CreatePriorityList({
+	Name = "Reroll With",
+	Options = { "Gems", "Reroll Orbs", "Shadow Crystals" },
+	CurrentValue = { "Gems", "Reroll Orbs" }, -- optional; the switched-on entries in order. Without it all are on
+	Flag = "RerollPriority",
+	Callback = function(order) end, -- the switched-on names in priority order
+})
+
+PriorityList:Refresh({ "Gems", "Reroll Orbs" }) -- swap the options at runtime
+PriorityList:GetItems() -- every entry in order: { { Name = "Gems", Enabled = true }, ... }
+```
+
+Each row has a checkbox to switch it on or off and arrows to move it up or down. The value
+(`:Get()`, the Callback, the saved config) is only the switched-on names in their order, so a
+script walks it and uses the first entry that works. Options added by `:Refresh` start switched
+off, so nothing new is used before the user has looked at it.
+
 ### Keybind
 ```luau
 local Keybind = Tab:CreateKeybind({
