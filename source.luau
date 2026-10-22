@@ -3299,7 +3299,7 @@ local PriorityList = (function()
 
 	-- Like the Dropdown's, the open panel is exactly as tall as its rows. It never scrolls: a
 	-- priority list is short, and every entry has to be in view to be put in order.
-	local ROW_HEIGHT = 60
+	local ROW_HEIGHT = 48 -- the entries; slimmer than the 60px header so the open list stays compact
 	local ROW_GAP = 12 -- UIListLayout padding between the rows
 	local PANEL_PADDING = 8 -- the row frame's own UIPadding, top + bottom
 	local HEADER_GAP = 10 -- the rows start 10px below the 60px header
@@ -3600,7 +3600,7 @@ local PriorityList = (function()
 								TextColor3 = function()
 									return if item().Enabled then Colors.accentSoft else Colors.textMuted
 								end,
-								TextSize = 22,
+								TextSize = 20,
 								TextXAlignment = "Left",
 								FontFace = Font.fromName("Montserrat", Enum.FontWeight.Bold),
 							}),
@@ -3614,7 +3614,7 @@ local PriorityList = (function()
 									return item().Name
 								end,
 								TextColor3 = nameColor,
-								TextSize = 22,
+								TextSize = 20,
 								TextXAlignment = "Left",
 								TextTruncate = "AtEnd",
 								FontFace = Font.fromName("Montserrat", Enum.FontWeight.Medium),
@@ -4669,12 +4669,17 @@ local Window = (function()
 
 	local OPENED_POSITION = UDim2.new(0.5, 0, 0.5, 0)
 	local CLOSED_POSITION = UDim2.new(0.5, 0, 1.5, 0)
-	local UI_SCALE = 0.85
+	-- The window is laid out at LAYOUT_W x LAYOUT_H and scaled down to the size a 960 x 540 window
+	-- has on screen. Every element therefore comes out at 960 / LAYOUT_W of its layout size: a
+	-- 60px row shows as 40px. Raise LAYOUT_W/H to make the whole UI denser, lower them for bigger.
+	local LAYOUT_W = 1440
+	local LAYOUT_H = 810
+	local UI_SCALE = 0.85 * 960 / LAYOUT_W
 
 	-- layout raster (px, inside the mainframe) -- change PAD to tighten/loosen everywhere
 	local PAD = 8
 	local TOPBAR_H = 66
-	local TABLIST_W = 220
+	local TABLIST_W = 300
 	local ROW_Y = PAD + TOPBAR_H + PAD -- top of the tablist/content row
 
 	local Window = {}
@@ -5398,7 +5403,7 @@ local Window = (function()
 			create("UIScale")({ Scale = scale }),
 
 			create("Frame")({ -- mainframe (footer removed -> shorter)
-				Size = UDim2.fromOffset(960, 540),
+				Size = UDim2.fromOffset(LAYOUT_W, LAYOUT_H),
 				AnchorPoint = Vector2.new(0.5, 0.5),
 				Position = displayPos,
 				BackgroundColor3 = Colors.surfaceActive,
