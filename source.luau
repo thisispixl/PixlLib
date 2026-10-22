@@ -2167,10 +2167,10 @@ local UserInputService = game:GetService("UserInputService")
 
 -- Shown in the window's topbar and readable as PixlLib.Version. Raise it with every push, so
 -- the window tells you whether the new build has arrived (GitHub's raw links cache ~5 minutes).
-local VERSION = "1.4.0"
+local VERSION = "1.4.1"
 
 -- Element heights, shared so every row type grows or shrinks together
-local ROW_H = 70 -- Toggle, Slider, Input, Keybind, Dropdown and Priority List headers
+local ROW_H = 64 -- Toggle, Slider, Input, Keybind, Dropdown and Priority List headers
 local BUTTON_H = 54
 
 -- Colors
