@@ -4674,12 +4674,20 @@ local Window = (function()
 	-- 60px row shows as 40px. Raise LAYOUT_W/H to make the whole UI denser, lower them for bigger.
 	local LAYOUT_W = 1440
 	local LAYOUT_H = 810
-	local UI_SCALE = 0.85 * 960 / LAYOUT_W
+	-- How big the window is on screen: its share of a 960 x 540 window on a 1080p screen
+	local SCREEN_SIZE = 0.72
+	local UI_SCALE = SCREEN_SIZE * 960 / LAYOUT_W
 
 	-- layout raster (px, inside the mainframe) -- change PAD to tighten/loosen everywhere
 	local PAD = 8
 	local TOPBAR_H = 66
 	local TABLIST_W = 300
+
+	-- tab buttons in the tab list
+	local TAB_H = 56
+	local TAB_ICON = 30
+	local TAB_INSET = 14 -- left edge to icon, and the text's right margin
+	local TAB_TEXT_X = TAB_INSET + TAB_ICON + 12 -- the text starts right of the icon
 	local ROW_Y = PAD + TOPBAR_H + PAD -- top of the tablist/content row
 
 	local Window = {}
@@ -5002,11 +5010,12 @@ local Window = (function()
 					local textColor = spring(targetTextColor, 0.3)
 
 					return create("Frame")({
-						Size = UDim2.new(0.925, 0, 0.1, 0),
+						-- A fixed height: a share of the list's height grew with the window
+						Size = UDim2.new(0.925, 0, 0, TAB_H),
 						BackgroundColor3 = bgColor,
 
 						create("UICorner")({
-							CornerRadius = UDim.new(0, 12),
+							CornerRadius = UDim.new(0, 10),
 						}),
 
 						create("TextButton")({
@@ -5029,10 +5038,9 @@ local Window = (function()
 						}),
 
 						create("ImageLabel")({
-							Size = UDim2.fromScale(0.6, 0.6),
-							SizeConstraint = "RelativeYY",
+							Size = UDim2.fromOffset(TAB_ICON, TAB_ICON),
 							AnchorPoint = Vector2.new(0, 0.5),
-							Position = UDim2.new(0, 8, 0.5, 0),
+							Position = UDim2.new(0, TAB_INSET, 0.5, 0),
 							BackgroundTransparency = 1,
 
 							Image = function()
@@ -5042,11 +5050,12 @@ local Window = (function()
 							ImageColor3 = textColor,
 						}),
 
-						create("TextLabel")({
-							Size = UDim2.new(1, -48, 0.6, 0),
-							AnchorPoint = Vector2.new(1, 0.5),
-							Position = UDim2.new(1, -8, 0.5, 0),
+						create("TextLabel")({ -- starts right of the icon, so the two never overlap
+							Size = UDim2.new(1, -(TAB_TEXT_X + TAB_INSET), 0.6, 0),
+							AnchorPoint = Vector2.new(0, 0.5),
+							Position = UDim2.new(0, TAB_TEXT_X, 0.5, 0),
 							BackgroundTransparency = 1,
+							TextTruncate = "AtEnd",
 
 							Text = function()
 								return tab().name
