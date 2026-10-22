@@ -2167,7 +2167,11 @@ local UserInputService = game:GetService("UserInputService")
 
 -- Shown in the window's topbar and readable as PixlLib.Version. Raise it with every push, so
 -- the window tells you whether the new build has arrived (GitHub's raw links cache ~5 minutes).
-local VERSION = "1.3.1"
+local VERSION = "1.4.0"
+
+-- Element heights, shared so every row type grows or shrinks together
+local ROW_H = 70 -- Toggle, Slider, Input, Keybind, Dropdown and Priority List headers
+local BUTTON_H = 54
 
 -- Colors
 local Colors = {
@@ -2606,7 +2610,7 @@ local Keybind = (function()
 			end, 0.3)
 
 			return create("Frame")({
-				Size = UDim2.new(0.98, 0, 0, 60),
+				Size = UDim2.new(0.98, 0, 0, ROW_H),
 				BackgroundColor3 = bgColor,
 				Visible = keybind.visible,
 
@@ -2679,7 +2683,7 @@ local Button = (function()
 			end, 0.3)
 
 			return create("Frame")({
-				Size = UDim2.new(0.98, 0, 0, 44),
+				Size = UDim2.new(0.98, 0, 0, BUTTON_H),
 				BackgroundColor3 = bgColor,
 				Visible = button.visible,
 
@@ -2785,10 +2789,10 @@ local Dropdown = (function()
 	-- search row plus one row per option that survives the search - and stops growing at
 	-- MAX_ROWS, from where the list scrolls. A fixed height left a two-option dropdown with two
 	-- empty slots below it.
-	local ROW_HEIGHT = 60
+	local ROW_HEIGHT = ROW_H -- the search row and the options, as tall as the header
 	local ROW_GAP = 12 -- UIListLayout padding between the rows
 	local PANEL_PADDING = 8 -- the scroll frame's own UIPadding, top + bottom
-	local HEADER_GAP = 10 -- the panel starts 10px below the 60px header
+	local HEADER_GAP = 10 -- the panel starts 10px below the header
 	local MAX_ROWS = 4 -- search row + 3 options before it scrolls
 
 	local function panelHeightFor(rowCount: number): number
@@ -2926,9 +2930,9 @@ local Dropdown = (function()
 			end, 0.3)
 
 			return create("Frame")({
-				-- one frame, one animated height: header (60) + panel; clips the scroll frame as it grows/shrinks
+				-- one frame, one animated height: header (ROW_H) + panel; clips the scroll frame as it grows/shrinks
 				Size = function()
-					return UDim2.new(0.98, 0, 0, 60 + panelHeight())
+					return UDim2.new(0.98, 0, 0, ROW_H + panelHeight())
 				end,
 				BackgroundColor3 = Colors.bg, -- fixed dark backdrop the options rest on
 				ClipsDescendants = true,
@@ -2937,7 +2941,7 @@ local Dropdown = (function()
 				create("UICorner")({ CornerRadius = UDim.new(0, 12) }),
 
 				create("Frame")({ -- header row, pinned to the top; this is the hoverable hull
-					Size = UDim2.new(1, 0, 0, 60),
+					Size = UDim2.new(1, 0, 0, ROW_H),
 					Position = UDim2.fromScale(0, 0),
 					BackgroundColor3 = bgColor,
 
@@ -3020,7 +3024,7 @@ local Dropdown = (function()
 						return UDim2.new(0.975, 0, 0, panelHeight() - 10) -- gap subtracted so the bottom stays flush
 					end,
 					AnchorPoint = Vector2.new(0.5, 0),
-					Position = UDim2.new(0.5, 0, 0, 70), -- 10px below the header instead of pulling up
+					Position = UDim2.new(0.5, 0, 0, ROW_H + HEADER_GAP), -- 10px below the header instead of pulling up
 					BackgroundTransparency = 1,
 					ScrollBarThickness = 4,
 					ScrollBarImageColor3 = Colors.textMuted,
@@ -3036,7 +3040,7 @@ local Dropdown = (function()
 					}),
 
 					create("Frame")({ -- fixed top row: search (full InputBox element) + select-all
-						Size = UDim2.new(0.98, 0, 0, 60),
+						Size = UDim2.new(0.98, 0, 0, ROW_HEIGHT),
 						LayoutOrder = 0,
 						BackgroundTransparency = 1,
 
@@ -3182,7 +3186,7 @@ local Dropdown = (function()
 						end, 0.2)
 
 						return create("Frame")({
-							Size = UDim2.new(0.98, 0, 0, 60),
+							Size = UDim2.new(0.98, 0, 0, ROW_HEIGHT),
 							LayoutOrder = i + 1,
 							BackgroundColor3 = optionBg,
 
@@ -3303,10 +3307,10 @@ local PriorityList = (function()
 
 	-- Like the Dropdown's, the open panel is exactly as tall as its rows. It never scrolls: a
 	-- priority list is short, and every entry has to be in view to be put in order.
-	local ROW_HEIGHT = 48 -- the entries; slimmer than the 60px header so the open list stays compact
+	local ROW_HEIGHT = 48 -- the entries; slimmer than the header so the open list stays compact
 	local ROW_GAP = 12 -- UIListLayout padding between the rows
 	local PANEL_PADDING = 8 -- the row frame's own UIPadding, top + bottom
-	local HEADER_GAP = 10 -- the rows start 10px below the 60px header
+	local HEADER_GAP = 10 -- the rows start 10px below the header
 
 	local CHECKBOX_SIZE = 26
 	local ARROW_SIZE = 34
@@ -3447,9 +3451,9 @@ local PriorityList = (function()
 			end, 0.3)
 
 			return create("Frame")({
-				-- one frame, one animated height: header (60) + panel; clips the rows as it grows/shrinks
+				-- one frame, one animated height: header (ROW_H) + panel; clips the rows as it grows/shrinks
 				Size = function()
-					return UDim2.new(0.98, 0, 0, 60 + panelHeight())
+					return UDim2.new(0.98, 0, 0, ROW_H + panelHeight())
 				end,
 				BackgroundColor3 = Colors.bg, -- fixed dark backdrop the rows rest on
 				ClipsDescendants = true,
@@ -3458,7 +3462,7 @@ local PriorityList = (function()
 				create("UICorner")({ CornerRadius = UDim.new(0, 12) }),
 
 				create("Frame")({ -- header row, pinned to the top; this is the hoverable hull
-					Size = UDim2.new(1, 0, 0, 60),
+					Size = UDim2.new(1, 0, 0, ROW_H),
 					BackgroundColor3 = bgColor,
 
 					create("UICorner")({ CornerRadius = UDim.new(0, 12) }),
@@ -3528,7 +3532,7 @@ local PriorityList = (function()
 						return UDim2.new(0.975, 0, 0, math.max(panelHeight() - HEADER_GAP, 0))
 					end,
 					AnchorPoint = Vector2.new(0.5, 0),
-					Position = UDim2.new(0.5, 0, 0, 60 + HEADER_GAP),
+					Position = UDim2.new(0.5, 0, 0, ROW_H + HEADER_GAP),
 					BackgroundTransparency = 1,
 
 					create("UIListLayout")({ Padding = UDim.new(0, ROW_GAP), HorizontalAlignment = "Left", SortOrder = "LayoutOrder" }),
@@ -3803,7 +3807,7 @@ local InputBox = (function()
 			})
 
 			return create("Frame")({
-				Size = UDim2.new(0.98, 0, 0, 60),
+				Size = UDim2.new(0.98, 0, 0, ROW_H),
 				BackgroundColor3 = bgColor,
 				Visible = input.visible,
 
@@ -4172,7 +4176,7 @@ local Slider = (function()
 			vide.cleanup(endConn)
 
 			return create("Frame")({
-				Size = UDim2.new(0.98, 0, 0, 60),
+				Size = UDim2.new(0.98, 0, 0, ROW_H),
 				BackgroundColor3 = bgColor,
 				Visible = slider.visible,
 
@@ -4343,7 +4347,7 @@ local Toggle = (function()
 			local rightInset = 20 + SWITCH_WIDTH + (if badge then GAP + BADGE_WIDTH else 0)
 
 			return create("Frame")({
-				Size = UDim2.new(0.98, 0, 0, 60),
+				Size = UDim2.new(0.98, 0, 0, ROW_H),
 				BackgroundColor3 = bgColor,
 				Visible = toggle.visible,
 
@@ -4691,7 +4695,7 @@ local Window = (function()
 
 	-- layout raster (px, inside the mainframe) -- change PAD to tighten/loosen everywhere
 	local PAD = 8
-	local TOPBAR_H = 66
+	local TOPBAR_H = 76
 	local TABLIST_W = 300
 
 	-- tab buttons in the tab list
@@ -5199,7 +5203,7 @@ local Window = (function()
 				}),
 
 				create("Frame")({ -- change UI keybind: label left, rebind pill right
-					Size = UDim2.new(0.98, 0, 0, 60),
+					Size = UDim2.new(0.98, 0, 0, ROW_H),
 					LayoutOrder = 2,
 					BackgroundColor3 = Colors.surface,
 
@@ -5251,7 +5255,7 @@ local Window = (function()
 					end, 0.3)
 
 					return create("Frame")({
-						Size = UDim2.new(0.98, 0, 0, 48),
+						Size = UDim2.new(0.98, 0, 0, BUTTON_H),
 						LayoutOrder = 4,
 						BackgroundColor3 = bgColor,
 
