@@ -2165,6 +2165,10 @@ local UserInputService = game:GetService("UserInputService")
 -- 4. PixlLib
 -- ==========================================================================================
 
+-- Shown in the window's topbar and readable as PixlLib.Version. Raise it with every push, so
+-- the window tells you whether the new build has arrived (GitHub's raw links cache ~5 minutes).
+local VERSION = "1.3.0"
+
 -- Colors
 local Colors = {
 	-- surfaces (dark -> light)
@@ -4672,11 +4676,18 @@ local Window = (function()
 	-- The window is laid out at LAYOUT_W x LAYOUT_H and scaled down to the size a 960 x 540 window
 	-- has on screen. Every element therefore comes out at 960 / LAYOUT_W of its layout size: a
 	-- 60px row shows as 40px. Raise LAYOUT_W/H to make the whole UI denser, lower them for bigger.
-	local LAYOUT_W = 1440
-	local LAYOUT_H = 810
+	-- Text shrunk below about 2/3 of its layout size turns blurry, so LAYOUT_W stays close to
+	-- what is shown; the UI Size slider in the settings scales everything on top of this.
+	local LAYOUT_W = 1200
+	local LAYOUT_H = 675
 	-- How big the window is on screen: its share of a 960 x 540 window on a 1080p screen
-	local SCREEN_SIZE = 0.72
+	local SCREEN_SIZE = 0.75
 	local UI_SCALE = SCREEN_SIZE * 960 / LAYOUT_W
+
+	-- the UI Size slider in the settings, in percent of the size above
+	local UI_SIZE_MIN = 50
+	local UI_SIZE_MAX = 150
+	local UI_SIZE_DELAY = 0.4 -- seconds the slider has to rest before the window resizes
 
 	-- layout raster (px, inside the mainframe) -- change PAD to tighten/loosen everywhere
 	local PAD = 8
@@ -4770,17 +4781,49 @@ local Window = (function()
 
 			create("UICorner")({ CornerRadius = UDim.new(0, 12) }),
 
-			create("TextLabel")({
+			create("Frame")({ -- title, then the version tag right next to it
 				Size = UDim2.fromScale(0.5, 0.7),
 				AnchorPoint = Vector2.new(0, 0.5),
 				Position = UDim2.fromScale(0.02, 0.5),
 				BackgroundTransparency = 1,
 
-				Text = props.title,
-				TextSize = 38,
-				TextColor3 = Colors.textPrimary,
-				TextXAlignment = "Left",
-				FontFace = Font.fromName("Montserrat", Enum.FontWeight.ExtraBold),
+				create("UIListLayout")({
+					FillDirection = "Horizontal",
+					VerticalAlignment = "Center",
+					Padding = UDim.new(0, 12),
+					SortOrder = "LayoutOrder",
+				}),
+
+				create("TextLabel")({
+					Size = UDim2.fromScale(0, 1), -- X grows with the text
+					AutomaticSize = "X",
+					LayoutOrder = 1,
+					BackgroundTransparency = 1,
+
+					Text = props.title,
+					TextSize = 38,
+					TextColor3 = Colors.textPrimary,
+					TextXAlignment = "Left",
+					FontFace = Font.fromName("Montserrat", Enum.FontWeight.ExtraBold),
+				}),
+
+				create("TextLabel")({ -- version tag, shows which PixlLib build is running
+					Size = UDim2.fromOffset(0, 30),
+					AutomaticSize = "X",
+					LayoutOrder = 2,
+					BackgroundColor3 = Colors.surfaceHover,
+
+					Text = "v" .. VERSION,
+					TextSize = 20,
+					TextColor3 = Colors.accentSoft,
+					FontFace = Font.fromName("Montserrat", Enum.FontWeight.Bold),
+
+					create("UICorner")({ CornerRadius = UDim.new(1, 0) }),
+					create("UIPadding")({
+						PaddingLeft = UDim.new(0, 10),
+						PaddingRight = UDim.new(0, 10),
+					}),
+				}),
 			}),
 
 			create("Frame")({ -- player display
@@ -5192,6 +5235,15 @@ local Window = (function()
 					}),
 				}),
 
+				create("Frame")({ -- UI size slider; the wrapper only gives it its place in the list
+					Size = UDim2.fromScale(1, 0),
+					AutomaticSize = "Y",
+					LayoutOrder = 3,
+					BackgroundTransparency = 1,
+
+					props.sizeSlider:render(),
+				}),
+
 				(function() -- unload UI: destructive, so it reads red and needs a confirming second click
 					local hovered = source(false)
 					local armed = source(false) -- first click arms; a second click within the timeout unloads
@@ -5206,7 +5258,7 @@ local Window = (function()
 
 					return create("Frame")({
 						Size = UDim2.new(0.98, 0, 0, 48),
-						LayoutOrder = 3,
+						LayoutOrder = 4,
 						BackgroundColor3 = bgColor,
 
 						create("UICorner")({ CornerRadius = UDim.new(0, 12) }),
@@ -5322,6 +5374,9 @@ local Window = (function()
 		end
 
 		local scale = source(1)
+		-- The UI Size slider's factor, applied on top of the automatic fit to the screen
+		local userScale = 1
+		local sizeToken = 0 -- the newest slider change; older pending ones are dropped
 		local minimized = source(false)
 		local settingsOpen = source(false)
 
@@ -5348,7 +5403,7 @@ local Window = (function()
 		local function updateScale()
 			local vp = camera.ViewportSize
 			local raw = math.min(vp.X / 1920, vp.Y / 1080)
-			scale(math.min(raw, 1) * UI_SCALE)
+			scale(math.min(raw, 1) * UI_SCALE * userScale)
 		end
 
 		local conn = camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
@@ -5393,6 +5448,36 @@ local Window = (function()
 
 		-- Read/write the toggle key from outside (config load). The setter also updates the visible
 		-- pill and does NOT request a save, so restoring from disk cannot loop back into a write.
+		-- Like the toggle key, the UI size belongs to the window, not to a Flag, so the config
+		-- saves it on its own through getUiSize/setUiSize
+		local sizeSlider = Slider.new({
+			Name = "UI size",
+			Range = { UI_SIZE_MIN, UI_SIZE_MAX },
+			Increment = 5,
+			Suffix = "%",
+			CurrentValue = 100,
+			Callback = function(percent)
+				-- Applied once the slider rests: resizing the window under a dragging finger
+				-- would move the slider bar away from it
+				sizeToken += 1
+				local myToken = sizeToken
+				task.delay(UI_SIZE_DELAY, function()
+					if sizeToken == myToken then
+						userScale = percent / 100
+						updateScale()
+					end
+				end)
+			end,
+		}, onChanged)
+
+		self.getUiSize = function()
+			return sizeSlider:Get()
+		end
+
+		self.setUiSize = function(percent)
+			sizeSlider:Set(percent)
+		end
+
 		self.getToggleKey = function()
 			return toggleKeyName()
 		end
@@ -5455,6 +5540,7 @@ local Window = (function()
 				createSettingsPanel({
 					settingsOpen = settingsOpen,
 					keyBadge = toggleKeyBadge,
+					sizeSlider = sizeSlider,
 					onUnload = onUnload,
 				}),
 			}),
@@ -5553,6 +5639,8 @@ local source = vide.source
 
 local PixlLib = {}
 
+PixlLib.Version = VERSION
+
 -- Every element that carries a Flag, keyed by it. This is what the config reads and writes,
 -- and what you index to reach an element from anywhere: PixlLib.Flags.AutoFarm:Set(true)
 PixlLib.Flags = {}
@@ -5611,6 +5699,8 @@ function PixlLib:Save()
 		values = values,
 		-- The window toggle key lives outside the Flags map, so it rides along separately.
 		toggleKey = self._window and self._window.getToggleKey and self._window.getToggleKey() or nil,
+		-- So is the UI size from the settings
+		uiSize = self._window and self._window.getUiSize and self._window.getUiSize() or nil,
 	}
 
 	if not canWrite() then
@@ -5681,6 +5771,9 @@ function PixlLib:Load()
 	-- up front keeps the reservation correct while the elements below load.
 	if decoded.toggleKey and self._window and self._window.setToggleKey then
 		self._window.setToggleKey(decoded.toggleKey)
+	end
+	if decoded.uiSize and self._window and self._window.setUiSize then
+		self._window.setUiSize(decoded.uiSize)
 	end
 
 	-- Whether restoring a value should run the element's callback. On by default, so a saved
